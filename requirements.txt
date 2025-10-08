@@ -1,0 +1,9 @@
+# Archivo de dependencias de Python para el proyecto
+
+pandas>=1.3.0          # Manipulación y análisis de datos
+numpy>=1.21.0          # Computación numérica
+scikit-learn>=1.0.0    # Algoritmos de machine learning
+matplotlib>=3.4.0      # Visualización de datos
+seaborn>=0.11.0        # Visualización estadística
+jupyter>=1.0.0         # Entorno de notebooks
+joblib>=1.0.0          # Serialización de modelos

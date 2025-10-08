@@ -2,7 +2,7 @@
 
 ## Caso de Uso
 
-Este repositorio contiene un proyecto de machine learning enfocado en estimar los niveles de obesidad en individuos basándose en sus hábitos alimenticios y condición física. El dataset incluye información de individuos de México, Perú y Colombia, con 2,111 registros y 16 características.
+Este repositorio contiene un proyecto de machine learning realizado en la material de "Operaciones de aprendizaje automático" de la Maestría en Inteligencia Artificial Aplicada, enfocado en estimar los niveles de obesidad en individuos basándose en sus hábitos alimenticios y condición física. El dataset incluye información de individuos de México, Perú y Colombia, con 2,111 registros y 16 características.
 
 El proyecto tiene como objetivo clasificar a los individuos en diferentes categorías de obesidad:
 - Peso Insuficiente
@@ -21,19 +21,31 @@ El dataset fue obtenido del UCI Machine Learning Repository y contiene tanto dat
 
 ```
 project-name/
-├─ data/
-│  ├─ raw/           # Datos originales, inmutables
-│  ├─ interim/       # Transformaciones intermedias de datos
-│  └─ processed/     # Datasets finales y canónicos para modelado
-├─ notebooks/        # Jupyter notebooks para exploración y análisis
-├─ src/
-│  ├─ data/          # Scripts de procesamiento de datos
-│  ├─ features/      # Código de ingeniería de características
-│  ├─ models/        # Entrenamiento y evaluación de modelos
-│  └─ visualization/ # Utilidades de graficación y visualización
-├─ models/           # Artefactos de modelos entrenados
-├─ reports/          # Reportes de análisis generados y documentación
-├─ dvc.yaml          # Configuración de Data Version Control
-├─ requirements.txt  # Dependencias de Python
-└─ README.md         # Documentación del proyecto
+├── LICENSE                    # Licencia de código abierto
+├── Makefile                   # Comandos de conveniencia
+├── README.md                  # Documentación principal del proyecto
+├── data/                      # Directorio de datos
+│   ├── external/              # Datos de fuentes externas
+│   ├── interim/               # Datos intermedios transformados
+│   ├── processed/             # Datasets finales para modelado
+│   └── raw/                   # Datos originales inmutables
+├── docs/                      # Documentación del proyecto
+├── mlops/                     # Código fuente del paquete Python
+│   ├── __init__.py
+│   ├── config.py              # Variables de configuración
+│   ├── dataset.py             # Scripts para descargar/generar datos
+│   ├── features.py            # Código para crear características
+│   ├── plots.py               # Código para visualizaciones
+│   └── modeling/              # Código relacionado con modelado
+│       ├── __init__.py
+│       ├── predict.py         # Código para inferencia del modelo
+│       └── train.py           # Código para entrenar modelos
+├── models/                    # Modelos entrenados y serializados
+├── notebooks/                 # Jupyter notebooks
+├── references/                # Diccionarios de datos, manuales, etc.
+├── reports/                   # Análisis generados
+│   └── figures/               # Gráficos y figuras generadas
+├── pyproject.toml             # Configuración del proyecto
+├── requirements.txt           # Dependencias de Python
+└── setup.cfg                  # Configuración para flake8
 ```
