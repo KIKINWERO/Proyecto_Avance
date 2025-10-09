@@ -1,6 +1,8 @@
 # Jupyter Notebook checkpoints
 notebooks/.ipynb_checkpoints/
 
+#Datos trackeados por dvc
+data/
 # Python
 
 __pycache__/
