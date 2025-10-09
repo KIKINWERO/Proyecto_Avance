@@ -3,6 +3,11 @@ notebooks/.ipynb_checkpoints/
 
 #Datos trackeados por dvc
 data/
+.dvc/cache/
+.dvc/tmp/
+reports/figures/temp/
+
+
 # Python
 
 __pycache__/
