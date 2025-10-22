@@ -1,0 +1,32 @@
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "mlops_obesidad"
+version = "0.0.1"
+description = "Aplicaci\u00f3n enfocada en estimar los niveles de obesidad en individuos bas\u00e1ndose en sus h\u00e1bitos alimenticios y condici\u00f3n f\u00edsica."
+authors = [
+  { name = "Equipo 7 MLops MNA" },
+]
+license = { file = "LICENSE" }
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License"
+]
+requires-python = "~=3.10.0"
+
+
+[tool.ruff]
+line-length = 99
+src = ["mlops_obesidad"]
+include = ["pyproject.toml", "mlops_obesidad/**/*.py"]
+
+[tool.ruff.lint]
+extend-select = ["I"]  # Add import sorting
+
+[tool.ruff.lint.isort]
+known-first-party = ["mlops_obesidad"]
+force-sort-within-sections = true
+
