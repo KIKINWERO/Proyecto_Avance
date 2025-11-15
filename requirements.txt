@@ -17,3 +17,6 @@ loguru>=0.7.0           # Logging avanzado (usado en todos los scripts)
 tqdm>=4.65.0            # Barras de progreso (usado en scripts)
 python-dotenv>=1.0.0    # Manejo de variables de entorno (usado en config.py)
 pytest>=7.0.0          # Framework de testing (usado en tests/)
+fastapi>=0.104.0       # Framework web para la API
+uvicorn[standard]>=0.24.0  # Servidor ASGI para FastAPI
+requests>=2.31.0       # Cliente HTTP para pruebas de la API
