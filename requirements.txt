@@ -8,4 +8,12 @@ scikit-learn>=1.0.0    # Algoritmos de machine learning (no instalado en base)
 seaborn>=0.11.0        # Visualización estadística
 jupyter>=1.0.0         # Entorno de notebooks (no instalado en base)
 joblib>=1.0.0          # Serialización de modelos
-dvc[s3]==3.*          # Versiones exactas encontradas en el entorno conda base  
+dvc[s3]==3.*          # Versiones exactas encontradas en el entorno conda base
+scipy>=1.0.0           # Estadísticas y distribuciones (para RandomizedSearchCV)
+xgboost>=1.0.0         # Modelo XGBoost para clasificación
+mlflow>=2.0.0          # Tracking de experimentos y modelos
+typer>=0.9.0            # Framework para CLI (usado en scripts Python)
+loguru>=0.7.0           # Logging avanzado (usado en todos los scripts)
+tqdm>=4.65.0            # Barras de progreso (usado en scripts)
+python-dotenv>=1.0.0    # Manejo de variables de entorno (usado en config.py)
+pytest>=7.0.0          # Framework de testing (usado en tests/)
