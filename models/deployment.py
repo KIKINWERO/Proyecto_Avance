@@ -18,7 +18,7 @@ from xgboost import XGBClassifier
 
 import pickle
 
-SRC_PATH = '/content/drive/MyDrive/Pregrado - Posgrado - Trabajo/Maestría - Inteligencia Artificial Aplicada/11. MLOps/1. Primera etapa de proyecto/Modelado/obesity_estimation_original.csv'
+SRC_PATH = '../data/processed/obesity_model_ready.csv'
 MODEL_PATH = 'xgboost_model_artifacts.pkl'
 
 with open(MODEL_PATH, 'rb') as f:
