@@ -4,7 +4,7 @@
 pandas==2.2.3          # Manipulación y análisis de datos
 numpy==2.1.3           # Computación numérica
 matplotlib==3.10.0     # Visualización de datos
-scikit-learn>=1.0.0    # Algoritmos de machine learning (no instalado en base)
+scikit-learn==1.6.1    # Algoritmos de machine learning (versión específica para compatibilidad con modelo pickle)
 seaborn>=0.11.0        # Visualización estadística
 jupyter>=1.0.0         # Entorno de notebooks (no instalado en base)
 joblib>=1.0.0          # Serialización de modelos
