@@ -12,14 +12,18 @@ from API.schemas import PredictionRequest, PredictionResponse, PredictionProbabi
 
 
 # Clases de predicción posibles
+# IMPORTANTE: El orden debe coincidir con el orden del label_encoder del modelo
+# Orden del modelo: ['Insufficient_Weight', 'Normal_Weight', 'Obesity_Type_I', 
+#                    'Obesity_Type_II', 'Obesity_Type_III', 'Overweight_Level_I', 
+#                    'Overweight_Level_II']
 OBESITY_CLASSES = [
     "Insufficient_Weight",
     "Normal_Weight",
-    "Overweight_Level_I",
-    "Overweight_Level_II",
     "Obesity_Type_I",
     "Obesity_Type_II",
     "Obesity_Type_III",
+    "Overweight_Level_I",
+    "Overweight_Level_II",
 ]
 
 MODEL_VERSION = "1.0.0"
@@ -154,17 +158,62 @@ def real_predict(request: PredictionRequest) -> PredictionResponse:
     """
     Función para predicción real con el modelo entrenado.
     
-    Esta función será implementada cuando el modelo esté listo.
-    Por ahora, llama a dummy_predict como placeholder.
-    
     Args:
         request: Datos de entrada para la predicción
         
     Returns:
         Respuesta con la predicción y probabilidades
+        
+    Raises:
+        RuntimeError: Si el modelo no está cargado
+        Exception: Si hay error durante la predicción
     """
-    # TODO: Implementar predicción real cuando el modelo esté disponible
-    # Por ahora, usar función dummy
-    logger.warning("Usando función dummy - modelo real no disponible aún")
-    return dummy_predict(request)
+    start_time = time.time()
+    
+    logger.info(f"Procesando predicción real para: Age={request.Age}, Weight={request.Weight}")
+    
+    try:
+        # Importar funciones de inferencia
+        from mlops_obesidad.inference import predict_single
+        
+        # Realizar predicción
+        prediction_label, probabilities_array, probabilities_dict = predict_single(request)
+        
+        # Obtener confianza (probabilidad máxima)
+        confidence = max(probabilities_dict.values())
+        
+        # Asegurar que todas las clases estén en el diccionario
+        # (por si el modelo tiene un orden diferente)
+        complete_probabilities = {cls: 0.0 for cls in OBESITY_CLASSES}
+        complete_probabilities.update(probabilities_dict)
+        
+        # Calcular tiempo de procesamiento
+        processing_time = (time.time() - start_time) * 1000  # en milisegundos
+        
+        # Crear respuesta
+        response = PredictionResponse(
+            prediction=prediction_label,
+            probabilities=PredictionProbabilities(**complete_probabilities),
+            confidence=round(confidence, 4),
+            model_version=MODEL_VERSION,
+            model_id=MODEL_ID,
+            prediction_id=str(uuid4()),
+            timestamp=datetime.utcnow().isoformat() + "Z",
+            processing_time_ms=round(processing_time, 2),
+        )
+        
+        logger.success(
+            f"Predicción real completada: {prediction_label} (confianza: {confidence:.4f})"
+        )
+        
+        return response
+        
+    except RuntimeError as e:
+        logger.error(f"Error: Modelo no disponible - {e}")
+        logger.warning("Usando función dummy como fallback")
+        return dummy_predict(request)
+    except Exception as e:
+        logger.error(f"Error durante predicción real: {e}")
+        logger.warning("Usando función dummy como fallback")
+        return dummy_predict(request)
 

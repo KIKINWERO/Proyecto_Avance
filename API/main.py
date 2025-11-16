@@ -34,8 +34,15 @@ async def startup_event():
     """Evento ejecutado al iniciar la aplicación."""
     logger.info("Iniciando API de Predicción de Niveles de Obesidad")
     logger.info(f"Versión: {__version__}")
-    # TODO: Cargar modelo aquí cuando esté disponible
-    logger.warning("Modelo no cargado - usando función dummy")
+    
+    # Cargar modelo al iniciar
+    try:
+        from mlops_obesidad.inference import load_model
+        load_model()
+        logger.success("Modelo cargado exitosamente")
+    except Exception as e:
+        logger.error(f"Error al cargar el modelo: {e}")
+        logger.warning("La API continuará usando función dummy como fallback")
 
 
 @app.on_event("shutdown")

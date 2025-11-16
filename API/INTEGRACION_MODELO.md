@@ -1,283 +1,277 @@
 # Guía de Integración del Modelo Real
 
-Este documento describe los pasos necesarios para integrar el modelo entrenado en la API, reemplazando la función dummy actual.
+Este documento describe la integración del modelo entrenado en la API. **La integración ya está completada** y este documento sirve como referencia para entender cómo funciona.
 
-## Prerequisitos
+## Estado de la Integración
 
-- Modelo entrenado guardado (formato `.pkl`, `.joblib`, o similar)
-- Pipeline de preprocesamiento (si aplica)
-- Archivos de configuración del modelo (scaler, encoders, etc.)
+✅ **COMPLETADO** - El modelo está integrado y funcionando en la API.
 
-## Pasos de Integración
+## Arquitectura de la Integración
 
-### 1. Preparar el Modelo para Producción
-
-Asegúrate de que el modelo esté guardado en el directorio `models/` del proyecto:
+La integración sigue las mejores prácticas de MLOps con una estructura modular:
 
 ```
-models/
-└── obesity_classifier_v1.pkl  # o el nombre que hayas usado
+mlops_obesidad/
+├── preprocessing/
+│   ├── __init__.py
+│   └── transformers.py          # DataCleanerTransformer
+├── inference/
+│   ├── __init__.py
+│   ├── model_loader.py          # Carga y gestión del modelo
+│   └── predictor.py             # Funciones de predicción
+├── utils/
+│   └── plots.py                 # Utilidades de visualización
+└── config.py                    # Configuración de rutas
 ```
 
-Si el modelo incluye un pipeline completo (preprocesador + clasificador), asegúrate de guardarlo como un único objeto.
+## Componentes Principales
 
-### 2. Actualizar `API/services.py`
+### 1. Módulo de Preprocesamiento (`mlops_obesidad/preprocessing/`)
 
-Reemplaza la función `real_predict()` con la lógica real de predicción:
+Contiene el transformador personalizado `DataCleanerTransformer` que es parte del pipeline del modelo. Este transformador:
 
-```python
-import joblib
-from pathlib import Path
-from mlops_obesidad.config import MODELS_DIR
+- Estandariza valores nulos (NA, N/A, na, NaN, strings vacíos)
+- Recorta espacios en columnas de tipo object
+- Elimina columnas que están 100% nulas
 
-# Cargar modelo al inicio (se puede hacer en startup)
-MODEL_PATH = MODELS_DIR / "obesity_classifier_v1.pkl"
-model = None
+**Importante:** Este transformador debe estar disponible para que pickle pueda cargar el modelo.
 
-def load_model():
-    """Carga el modelo desde disco."""
-    global model
-    if model is None:
-        logger.info(f"Cargando modelo desde: {MODEL_PATH}")
-        model = joblib.load(MODEL_PATH)
-        logger.success("Modelo cargado exitosamente")
-    return model
+### 2. Módulo de Inferencia (`mlops_obesidad/inference/`)
 
-def real_predict(request: PredictionRequest) -> PredictionResponse:
-    """
-    Función para predicción real con el modelo entrenado.
-    
-    Args:
-        request: Datos de entrada para la predicción
-        
-    Returns:
-        Respuesta con la predicción y probabilidades
-    """
-    start_time = time.time()
-    
-    # Cargar modelo si no está cargado
-    model = load_model()
-    
-    # Convertir request a formato que el modelo espera
-    # Si el modelo incluye el preprocesador, solo necesitas pasar los datos raw
-    input_data = _prepare_input_data(request)
-    
-    # Realizar predicción
-    prediction = model.predict(input_data)[0]
-    
-    # Obtener probabilidades (si el modelo las soporta)
-    if hasattr(model, 'predict_proba'):
-        probabilities_array = model.predict_proba(input_data)[0]
-        probabilities = _array_to_probabilities_dict(probabilities_array)
-    else:
-        # Si no hay probabilidades, crear diccionario con 1.0 para la clase predicha
-        probabilities = {cls: 0.0 for cls in OBESITY_CLASSES}
-        probabilities[prediction] = 1.0
-    
-    # Calcular confianza
-    confidence = probabilities[prediction]
-    
-    # Calcular tiempo de procesamiento
-    processing_time = (time.time() - start_time) * 1000
-    
-    # Crear respuesta
-    response = PredictionResponse(
-        prediction=prediction,
-        probabilities=PredictionProbabilities(**probabilities),
-        confidence=round(confidence, 2),
-        model_version=MODEL_VERSION,
-        model_id=MODEL_ID,
-        prediction_id=str(uuid4()),
-        timestamp=datetime.utcnow().isoformat() + "Z",
-        processing_time_ms=round(processing_time, 2),
-    )
-    
-    logger.info(f"Predicción real completada: {prediction} (confianza: {confidence:.2f})")
-    
-    return response
+#### `model_loader.py`
 
-def _prepare_input_data(request: PredictionRequest):
-    """
-    Prepara los datos del request para el formato que espera el modelo.
-    
-    Si el modelo incluye el preprocesador en el pipeline, solo necesitas
-    convertir el request a un DataFrame o array numpy con las columnas correctas.
-    """
-    import pandas as pd
-    
-    # Crear DataFrame con los datos del request
-    data = {
-        "Gender": [request.Gender.value],
-        "Age": [request.Age],
-        "Height": [request.Height],
-        "Weight": [request.Weight],
-        "family_history_with_overweight": [request.family_history_with_overweight.value],
-        "FAVC": [request.FAVC.value],
-        "FCVC": [request.FCVC],
-        "NCP": [request.NCP],
-        "CAEC": [request.CAEC.value],
-        "SMOKE": [request.SMOKE.value],
-        "CH2O": [request.CH2O],
-        "SCC": [request.SCC.value],
-        "FAF": [request.FAF],
-        "TUE": [request.TUE],
-        "CALC": [request.CALC.value],
-        "MTRANS": [request.MTRANS.value],
-    }
-    
-    df = pd.DataFrame(data)
-    return df
+Gestiona la carga del modelo en memoria:
 
-def _array_to_probabilities_dict(probabilities_array):
-    """
-    Convierte un array de probabilidades a diccionario.
-    
-    Asegúrate de que el orden de las clases en OBESITY_CLASSES
-    coincida con el orden que usa el modelo (label_encoder.classes_).
-    """
-    return {
-        OBESITY_CLASSES[i]: float(prob)
-        for i, prob in enumerate(probabilities_array)
-    }
-```
+- `load_model(model_path=None)`: Carga el modelo desde un archivo pickle
+- `get_model()`: Obtiene el modelo cargado (lo carga si no está cargado)
 
-### 3. Cargar el Modelo al Iniciar la API
+El modelo se carga una sola vez y se mantiene en memoria para mejor rendimiento.
 
-Actualiza `API/main.py` para cargar el modelo en el evento de startup:
+#### `predictor.py`
+
+Contiene las funciones para hacer predicciones:
+
+- `request_to_dataframe(request)`: Convierte un `PredictionRequest` a un DataFrame
+- `predict_single(request)`: Realiza una predicción individual
+
+### 3. Integración con la API (`API/services.py`)
+
+La función `real_predict()` ahora:
+
+1. Usa el módulo de inferencia para hacer predicciones reales
+2. Maneja errores con fallback a función dummy si es necesario
+3. Convierte las probabilidades al formato esperado por la API
+
+### 4. Carga del Modelo en Startup (`API/main.py`)
+
+El modelo se carga automáticamente cuando la API inicia:
 
 ```python
 @app.on_event("startup")
 async def startup_event():
-    """Evento ejecutado al iniciar la aplicación."""
-    logger.info("Iniciando API de Predicción de Niveles de Obesidad")
-    logger.info(f"Versión: {__version__}")
-    
-    # Cargar modelo
-    try:
-        from API.services import load_model
-        load_model()
-        logger.success("Modelo cargado exitosamente")
-    except Exception as e:
-        logger.error(f"Error al cargar el modelo: {str(e)}")
-        logger.warning("La API continuará usando función dummy")
+    from mlops_obesidad.inference import load_model
+    load_model()
 ```
 
-### 4. Verificar el Orden de las Clases
+## Flujo de Predicción
 
-**IMPORTANTE:** Asegúrate de que el orden de las clases en `OBESITY_CLASSES` en `services.py` coincida con el orden que usa el modelo. Puedes verificar esto con:
+1. **Cliente envía request** → `POST /api/v1/predict` con JSON
+2. **API valida request** → Pydantic valida el schema
+3. **Router llama a `real_predict()`** → `API/services.py`
+4. **`real_predict()` usa `predict_single()`** → `mlops_obesidad/inference/predictor.py`
+5. **`predict_single()` convierte request a DataFrame** → `request_to_dataframe()`
+6. **Modelo hace predicción** → El pipeline completo procesa los datos
+7. **Resultado se formatea** → Se crea `PredictionResponse`
+8. **API retorna respuesta** → JSON con predicción y probabilidades
+
+## Formato del Modelo
+
+El modelo está guardado en:
+```
+models/xgboost_model_artifacts.pkl
+```
+
+Contiene un diccionario con:
+- `'model'`: Pipeline completo (DataCleanerTransformer + Preprocessor + XGBClassifier)
+- `'label_encoder'`: LabelEncoder para decodificar las clases
+
+**Características importantes:**
+- El modelo incluye el pipeline completo de preprocesamiento
+- Los datos de entrada deben estar en formato crudo (raw)
+- No se necesita preprocesamiento manual antes de la predicción
+
+## Orden de Clases
+
+El orden de las clases en `OBESITY_CLASSES` debe coincidir con el orden del `label_encoder` del modelo:
 
 ```python
-# Si usaste LabelEncoder
-label_encoder.classes_
-# Debe coincidir con OBESITY_CLASSES
+OBESITY_CLASSES = [
+    "Insufficient_Weight",
+    "Normal_Weight",
+    "Obesity_Type_I",
+    "Obesity_Type_II",
+    "Obesity_Type_III",
+    "Overweight_Level_I",
+    "Overweight_Level_II",
+]
 ```
 
-Si el orden es diferente, actualiza `OBESITY_CLASSES` o ajusta la función `_array_to_probabilities_dict()`.
+Este orden coincide con: `label_encoder.classes_`
 
-### 5. Manejar el Preprocesamiento
+## Conversión de Request a DataFrame
 
-Si el modelo **NO** incluye el preprocesador en el pipeline, necesitarás aplicar las transformaciones manualmente:
+La función `request_to_dataframe()` convierte un `PredictionRequest` (Pydantic) a un DataFrame de pandas:
 
 ```python
-def _prepare_input_data(request: PredictionRequest):
-    """Prepara y preprocesa los datos."""
-    import pandas as pd
-    from sklearn.preprocessing import RobustScaler, OneHotEncoder
-    from sklearn.impute import SimpleImputer
-    
-    # Crear DataFrame
-    df = pd.DataFrame([...])  # como en el ejemplo anterior
-    
-    # Aplicar las mismas transformaciones que usaste en entrenamiento
-    # 1. One-hot encoding para categóricas
-    # 2. RobustScaler para numéricas
-    # 3. Imputación si es necesario
-    
-    # Retornar datos preprocesados
-    return df_processed
+def request_to_dataframe(request: PredictionRequest) -> pd.DataFrame:
+    data = {
+        "Gender": [request.Gender.value],
+        "Age": [request.Age],
+        "Height": [request.Height],
+        # ... todos los campos
+    }
+    return pd.DataFrame(data)
 ```
 
-**Recomendación:** Si es posible, guarda el modelo como un pipeline completo que incluya el preprocesador. Esto simplifica mucho la integración.
+Los enums de Pydantic se convierten a sus valores string usando `.value`.
 
-### 6. Probar la Integración
+## Manejo de Errores
 
-1. **Iniciar la API:**
-   ```bash
-   conda run -n mlops python run_api.py
-   ```
+La integración incluye manejo robusto de errores:
 
-2. **Probar con un request de ejemplo:**
-   ```bash
-   curl -X POST "http://localhost:8000/api/v1/predict" \
-     -H "Content-Type: application/json" \
-     -d @test_request.json
-   ```
+1. **Modelo no cargado**: Si el modelo no se puede cargar, se usa función dummy como fallback
+2. **Error durante predicción**: Si hay error en la predicción, se usa función dummy como fallback
+3. **Logs informativos**: Todos los errores se registran en los logs
 
-3. **Verificar en los logs** que el modelo se cargó correctamente y que las predicciones son reales (no dummy).
+## Pruebas
 
-### 7. Actualizar la Función Dummy (Opcional)
+### 1. Verificar que el modelo se carga
 
-Una vez que el modelo real esté funcionando, puedes:
+Al iniciar la API, deberías ver en los logs:
+```
+[INFO] Cargando modelo desde: models/xgboost_model_artifacts.pkl
+[SUCCESS] Modelo cargado exitosamente
+```
 
-- Eliminar la función `dummy_predict()` si ya no la necesitas
-- O mantenerla como fallback en caso de error al cargar el modelo
+### 2. Probar con un request
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/predict" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Gender": "Female",
+    "Age": 21.0,
+    "Height": 1.62,
+    "Weight": 64.0,
+    "family_history_with_overweight": "yes",
+    "FAVC": "no",
+    "FCVC": 2.0,
+    "NCP": 3.0,
+    "CAEC": "Sometimes",
+    "SMOKE": "no",
+    "CH2O": 2.0,
+    "SCC": "no",
+    "FAF": 0.0,
+    "TUE": 1.0,
+    "CALC": "no",
+    "MTRANS": "Public_Transportation"
+  }'
+```
+
+### 3. Verificar respuesta
+
+La respuesta debe incluir:
+- `prediction`: Clase predicha (ej: "Normal_Weight")
+- `probabilities`: Diccionario con probabilidades para cada clase
+- `confidence`: Probabilidad de la clase predicha
+- `model_version`: "1.0.0"
+- `model_id`: "obesity-classifier-v1"
+
+## Dependencias
+
+Asegúrate de tener instaladas todas las dependencias:
+
+```bash
+pip install -r requirements.txt
+```
+
+**Importante:** El modelo fue entrenado con `scikit-learn==1.6.1`. Asegúrate de tener esta versión instalada para compatibilidad.
+
+## Estructura de Archivos
+
+```
+Proyecto_Avance/
+├── mlops_obesidad/
+│   ├── preprocessing/
+│   │   ├── __init__.py
+│   │   └── transformers.py
+│   ├── inference/
+│   │   ├── __init__.py
+│   │   ├── model_loader.py
+│   │   └── predictor.py
+│   ├── utils/
+│   │   └── plots.py
+│   └── config.py
+├── API/
+│   ├── services.py          # real_predict() implementada
+│   ├── main.py              # Carga modelo en startup
+│   └── routers.py
+├── models/
+│   └── xgboost_model_artifacts.pkl
+└── requirements.txt
+```
 
 ## Checklist de Integración
 
-- [ ] Modelo guardado en `models/`
-- [ ] Función `real_predict()` implementada
-- [ ] Función `_prepare_input_data()` implementada
-- [ ] Función `_array_to_probabilities_dict()` implementada
-- [ ] Modelo se carga en `startup_event()`
-- [ ] Orden de clases verificado
-- [ ] Preprocesamiento implementado (si necesario)
-- [ ] Pruebas realizadas con requests reales
-- [ ] Logs verificados
-- [ ] Documentación actualizada
+- [x] Modelo guardado en `models/`
+- [x] Estructura modular creada (`preprocessing/`, `inference/`, `utils/`)
+- [x] Función `real_predict()` implementada
+- [x] Función `request_to_dataframe()` implementada
+- [x] Función `predict_single()` implementada
+- [x] Modelo se carga en `startup_event()`
+- [x] Orden de clases verificado y actualizado
+- [x] Preprocesamiento manejado por el pipeline del modelo
+- [x] Manejo de errores implementado
+- [x] Logs informativos agregados
+- [x] Documentación actualizada
 
 ## Notas Importantes
 
-1. **Formato del Modelo:** Asegúrate de saber si el modelo incluye el preprocesador o no. Esto afecta cómo preparas los datos.
+1. **Formato del Modelo:** El modelo incluye un pipeline completo, por lo que solo necesitas pasar datos crudos.
 
-2. **Orden de Clases:** El orden de las clases en las probabilidades debe coincidir con el orden del modelo.
+2. **Orden de Clases:** El orden de `OBESITY_CLASSES` coincide con `label_encoder.classes_`.
 
-3. **Manejo de Errores:** Implementa manejo de errores robusto para casos donde el modelo no pueda hacer predicciones.
+3. **Manejo de Errores:** Si el modelo no está disponible, la API usa función dummy como fallback.
 
-4. **Performance:** Si el modelo es grande, considera cargarlo una sola vez al inicio en lugar de cargarlo en cada request.
+4. **Performance:** El modelo se carga una sola vez al inicio y se mantiene en memoria.
 
 5. **Versionado:** Actualiza `MODEL_VERSION` y `MODEL_ID` en `services.py` cuando cambies de modelo.
 
-## Ejemplo de Request de Prueba
+6. **Compatibilidad de Versiones:** El modelo requiere `scikit-learn==1.6.1` para cargar correctamente.
 
-Crea un archivo `test_request.json`:
+## Troubleshooting
 
-```json
-{
-  "Gender": "Female",
-  "Age": 21.0,
-  "Height": 1.62,
-  "Weight": 64.0,
-  "family_history_with_overweight": "yes",
-  "FAVC": "no",
-  "FCVC": 2.0,
-  "NCP": 3.0,
-  "CAEC": "Sometimes",
-  "SMOKE": "no",
-  "CH2O": 2.0,
-  "SCC": "no",
-  "FAF": 0.0,
-  "TUE": 1.0,
-  "CALC": "no",
-  "MTRANS": "Public_Transportation"
-}
-```
+### Error: "Can't get attribute 'DataCleanerTransformer'"
+
+**Solución:** Asegúrate de que `mlops_obesidad.preprocessing.transformers` esté importado antes de cargar el modelo.
+
+### Error: "Modelo no disponible"
+
+**Solución:** Verifica que el archivo `models/xgboost_model_artifacts.pkl` exista y sea accesible.
+
+### Error: "InconsistentVersionWarning" de scikit-learn
+
+**Solución:** Instala la versión correcta: `pip install scikit-learn==1.6.1`
+
+### Las probabilidades no coinciden con las clases
+
+**Solución:** Verifica que el orden de `OBESITY_CLASSES` coincida con `label_encoder.classes_`.
 
 ## Soporte
 
-Si encuentras problemas durante la integración:
+Si encuentras problemas:
 
 1. Verifica los logs de la API para mensajes de error
 2. Asegúrate de que todas las dependencias estén instaladas
-3. Verifica que el formato del modelo sea compatible (joblib, pickle, etc.)
-4. Revisa que el preprocesamiento coincida con el entrenamiento
-
+3. Verifica que el formato del modelo sea compatible
+4. Revisa que el orden de clases sea correcto

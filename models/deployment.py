@@ -17,7 +17,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 # Importar el transformador personalizado necesario para cargar el modelo pickle
-from mlops_obesidad.transformers import DataCleanerTransformer
+from mlops_obesidad.preprocessing.transformers import DataCleanerTransformer
 
 # =============================================================================
 # CONFIGURACIÓN DE RUTAS
