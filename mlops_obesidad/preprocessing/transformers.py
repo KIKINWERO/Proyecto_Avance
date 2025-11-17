@@ -35,15 +35,16 @@ class DataCleanerTransformer(BaseEstimator, TransformerMixin):
         Returns:
             self: El transformador ajustado
         """
-        # Estandarizar nulos para el análisis
+        X = pd.DataFrame(X).copy()
+
+        # Aprender qué columnas son de tipo 'object' para limpiarlas en transform
+        self.obj_cols = X.select_dtypes(include=["object"]).columns.tolist()
+
+        # Detectar columnas 100% nulas en el set de entrenamiento
+        # (considerando también strings vacíos como nulos)
         df_temp = X.replace(r"^\s*$", np.nan, regex=True).replace(
             {"NA": np.nan, "N/A": np.nan, "na": np.nan, "NaN": np.nan}
         )
-
-        # Aprender qué columnas son de tipo 'object' para limpiarlas
-        self.obj_cols = df_temp.select_dtypes(include=["object"]).columns.tolist()
-
-        # Aprender qué columnas están 100% nulas en el training set
         self.all_null_cols = [c for c in df_temp.columns if df_temp[c].isna().all()]
 
         return self
@@ -58,20 +59,29 @@ class DataCleanerTransformer(BaseEstimator, TransformerMixin):
         Returns:
             DataFrame limpio
         """
-        df = X.copy()
+        df = pd.DataFrame(X).copy()
 
-        # 1. Estandarizar nulos
-        df = df.replace(r"^\s*$", np.nan, regex=True)
-        df = df.replace({"NA": np.nan, "N/A": np.nan, "na": np.nan, "NaN": np.nan})
-
-        # 2. Recortar strings (usando las columnas aprendidas en fit)
+        # 1) Recortar strings SOLO en columnas de texto aprendidas en fit,
+        #    sin convertir NaN a 'nan' (evitar astype(str))
         for c in self.obj_cols:
             if c in df.columns:
-                df[c] = df[c].astype(str).str.strip()
+                df[c] = df[c].apply(lambda v: v.strip() if isinstance(v, str) else v)
 
-        # 3. Eliminar columnas 100% nulas (aprendidas en fit)
+        # 2) Estandarizar nulos:
+        #    - strings vacíos -> NaN
+        #    - alias de nulos (case-insensitive) -> NaN
+        df = df.replace(r"^\s*$", np.nan, regex=True)
+        null_aliases = {"na", "n/a", "nan"}
+        for c in self.obj_cols:
+            if c in df.columns:
+                df[c] = df[c].apply(
+                    lambda v: np.nan
+                    if isinstance(v, str) and v.strip().lower() in null_aliases
+                    else v
+                )
+
+        # 3) Eliminar columnas 100% nulas aprendidas en fit
         if self.all_null_cols:
-            df = df.drop(columns=self.all_null_cols, errors='ignore')
+            df = df.drop(columns=self.all_null_cols, errors="ignore")
 
         return df
-
