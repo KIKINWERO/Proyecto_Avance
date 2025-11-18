@@ -1,0 +1,95 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist
+build
+.pytest_cache
+.coverage
+htmlcov
+.tox
+.mypy_cache
+.dmypy.json
+dmypy.json
+
+# Entornos virtuales
+venv/
+env/
+ENV/
+.venv
+conda_env/
+
+# IDEs y editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+*.ipynb
+
+# Documentación (mantener solo README.md)
+docs/
+*.md
+!README.md
+!README_DOCKER.md
+
+# Datos (no incluir en imagen)
+data/
+*.csv
+*.dvc
+.dvc/
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Tests (opcional, puedes comentar si quieres incluirlos)
+# tests/
+
+# Archivos temporales
+*.tmp
+*.temp
+.cache/
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Archivos de configuración local
+.env
+.env.local
+.env.*.local
+
+# Archivos de backup
+*.bak
+*.backup
+*~
+
+# Archivos de reportes grandes
+reports/figures/
+*.docx
+*.pdf
+
+# Referencias
+references/
+
+# Notebooks (no necesarios en producción)
+notebooks/
+
