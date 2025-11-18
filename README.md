@@ -316,6 +316,8 @@ curl -X POST "http://localhost:8000/api/v1/predict" \
 
 ## 🧪 Testing
 
+### Running Tests
+
 Run the test suite:
 
 ```bash
@@ -329,7 +331,365 @@ pytest tests/test_api_integration.py -v
 pytest tests/ --cov=mlops_obesidad --cov=API --cov-report=html
 ```
 
-For detailed testing instructions, see [GUIA_TESTING.md](GUIA_TESTING.md).
+### Test Structure
+
+The project includes comprehensive tests organized by component:
+
+#### 1. **Unit Tests - Preprocessing** (`tests/test_preprocessing.py`)
+
+Tests for the `DataCleanerTransformer`:
+
+- **`test_fit_learns_object_columns`**: Verifies that fit learns which columns
+  are object type
+- **`test_transform_standardizes_nulls`**: Tests null value standardization
+  (NA, N/A, na, NaN → NaN)
+- **`test_transform_trims_strings`**: Verifies string trimming in object columns
+- **`test_transform_drops_all_null_columns`**: Tests removal of 100% null columns
+- **`test_fit_transform_workflow`**: Tests complete fit + transform workflow
+
+**Run**: `pytest tests/test_preprocessing.py -v`
+
+#### 2. **Unit Tests - Inference** (`tests/test_inference.py`)
+
+Tests for model loading and prediction functions:
+
+- **`test_load_model_exists`**: Verifies model can be loaded if file exists
+- **`test_get_model_returns_loaded_model`**: Tests model retrieval
+- **`test_request_to_dataframe_converts_correctly`**: Tests conversion from
+  Pydantic request to DataFrame
+- **`test_request_to_dataframe_has_all_columns`**: Verifies all required columns
+  are present
+
+**Run**: `pytest tests/test_inference.py -v`
+
+**Note**: Requires `models/xgboost_model_artifacts.pkl` to exist.
+
+#### 3. **Unit Tests - API Services** (`tests/test_api_services.py`)
+
+Tests for API service functions:
+
+- **`test_dummy_predict_returns_response`**: Tests dummy prediction fallback
+- **`test_dummy_predict_probabilities_sum_to_one`**: Verifies probabilities sum
+  to 1.0
+- **`test_real_predict_returns_response`**: Tests real model prediction
+- **`test_real_predict_falls_back_to_dummy_on_error`**: Tests error handling
+
+**Run**: `pytest tests/test_api_services.py -v`
+
+#### 4. **Integration Tests - API** (`tests/test_api_integration.py`)
+
+End-to-end API integration tests:
+
+- **`test_root_endpoint`**: Tests root endpoint availability
+- **`test_docs_endpoint`**: Tests Swagger documentation availability
+- **`test_predict_endpoint_valid_request`**: Tests prediction with valid data
+- **`test_predict_endpoint_invalid_gender`**: Tests validation for invalid
+  gender values
+- **`test_predict_endpoint_missing_field`**: Tests required field validation
+- **`test_predict_endpoint_invalid_age_range`**: Tests age range validation
+
+**Run**: `pytest tests/test_api_integration.py -v`
+
+**Note**: Requires API to be running (`python run_api.py` or Docker container).
+
+### Test Prerequisites
+
+1. **Install dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Model file**: Ensure `models/xgboost_model_artifacts.pkl` exists for
+   inference tests
+
+3. **API running**: For integration tests, start the API:
+   ```bash
+   python run_api.py
+   # Or with Docker
+   docker-compose up -d
+   ```
+
+### Test Coverage Goals
+
+- **Unit Tests**: > 80% coverage for core modules
+- **Integration Tests**: All API endpoints covered
+- **Edge Cases**: Invalid inputs, missing fields, out-of-range values
+
+### Continuous Integration
+
+Tests can be integrated into CI/CD pipelines:
+
+```yaml
+# Example GitHub Actions workflow
+- name: Run tests
+  run: |
+    pip install -r requirements.txt
+    pytest tests/ -v --cov=mlops_obesidad --cov=API
+```
+
+## 📊 Data Drift Evaluation Guide
+
+Data drift occurs when the distribution of input data changes over time,
+potentially degrading model performance. This guide explains how to detect and
+evaluate data drift in the obesity prediction model.
+
+### Overview
+
+The data drift evaluation process involves:
+
+1. **Generating monitoring datasets** with altered distributions
+2. **Detecting drift** using statistical tests
+3. **Evaluating model performance** on drifted data
+4. **Setting alert thresholds** for production monitoring
+
+### Statistical Tests for Drift Detection
+
+#### 1. Numerical Variables - Kolmogorov-Smirnov (KS) Test
+
+The KS test compares the distribution of numerical variables between baseline
+and monitoring datasets.
+
+**Criteria**:
+- **p-value < 0.05**: Statistically significant difference
+- **KS statistic > 0.10**: Relevant magnitude of distribution change
+
+**Implementation**:
+
+```python
+from scipy.stats import ks_2samp
+import pandas as pd
+
+results = []
+for col in numerical_columns:
+    stat, p_value = ks_2samp(baseline_data[col], monitoring_data[col])
+    results.append({
+        'variable': col,
+        'ks_statistic': stat,
+        'p_value': p_value,
+        'has_drift': (p_value < 0.05) and (stat > 0.10)
+    })
+
+drift_df = pd.DataFrame(results)
+drifted_vars = drift_df[drift_df['has_drift'] == True]
+```
+
+#### 2. Categorical Variables - Chi-Square Test
+
+The Chi-square test evaluates if categorical frequency distributions changed
+significantly.
+
+**Criteria**:
+- **p-value < 0.05**: Evidence of categorical drift
+
+**Implementation**:
+
+```python
+from scipy.stats import chi2_contingency
+
+results = []
+for col in categorical_columns:
+    contingency = pd.crosstab(
+        baseline_data[col],
+        monitoring_data[col]
+    )
+    stat, p_value, dof, expected = chi2_contingency(contingency)
+    results.append({
+        'variable': col,
+        'chi2_statistic': stat,
+        'p_value': p_value,
+        'has_drift': p_value < 0.05
+    })
+
+drift_cat_df = pd.DataFrame(results)
+```
+
+### Simulating Data Drift
+
+To test drift detection, you can simulate drift by:
+
+1. **Shifting numerical means**: Add noise to numerical columns
+2. **Increasing variance**: Add Gaussian noise
+3. **Altering categorical frequencies**: Change category proportions
+
+**Example**:
+
+```python
+import numpy as np
+
+# Create drifted dataset
+df_drift = df_baseline.copy()
+
+# Numerical drift: shift means and add noise
+for col in ['Age', 'Weight', 'Height']:
+    df_drift[col] = df_drift[col] + np.random.normal(
+        loc=5, scale=3, size=len(df_drift)
+    )
+
+# Categorical drift: change proportions
+df_drift.loc[df_drift['SMOKE'] == 'yes', 'SMOKE'] = 'no'
+```
+
+### Performance Evaluation
+
+After detecting data drift, evaluate if it causes **performance drift**:
+
+```python
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+
+# Baseline metrics
+y_pred_baseline = model.predict(X_baseline)
+baseline_metrics = {
+    'accuracy': accuracy_score(y_baseline, y_pred_baseline),
+    'f1_macro': f1_score(y_baseline, y_pred_baseline, average='macro'),
+    'roc_auc': roc_auc_score(y_baseline, model.predict_proba(X_baseline),
+                             multi_class='ovo')
+}
+
+# Metrics with drift
+y_pred_drift = model.predict(X_drift)
+drift_metrics = {
+    'accuracy': accuracy_score(y_drift, y_pred_drift),
+    'f1_macro': f1_score(y_drift, y_pred_drift, average='macro'),
+    'roc_auc': roc_auc_score(y_drift, model.predict_proba(X_drift),
+                            multi_class='ovo')
+}
+
+# Compare
+performance_degradation = {
+    'accuracy_drop': baseline_metrics['accuracy'] - drift_metrics['accuracy'],
+    'f1_drop': baseline_metrics['f1_macro'] - drift_metrics['f1_macro'],
+    'auc_drop': baseline_metrics['roc_auc'] - drift_metrics['roc_auc']
+}
+```
+
+### Visual Analysis
+
+#### 1. Distribution Comparisons
+
+Compare distributions of drifted variables:
+
+```python
+import matplotlib.pyplot as plt
+
+for col in drifted_numerical_vars:
+    plt.figure(figsize=(10, 6))
+    plt.hist(baseline_data[col], bins=40, alpha=0.5, label='Baseline')
+    plt.hist(monitoring_data[col], bins=40, alpha=0.5, label='Monitoring')
+    plt.title(f'Distribution Comparison - {col}')
+    plt.xlabel(col)
+    plt.ylabel('Frequency')
+    plt.legend()
+    plt.show()
+```
+
+#### 2. Predicted Probabilities
+
+Compare probability distributions:
+
+```python
+probs_baseline = model.predict_proba(X_baseline)
+probs_drift = model.predict_proba(X_drift)
+
+for class_idx, class_name in enumerate(class_names):
+    plt.figure(figsize=(10, 6))
+    plt.hist(probs_baseline[:, class_idx], bins=40, alpha=0.5,
+             label='Baseline')
+    plt.hist(probs_drift[:, class_idx], bins=40, alpha=0.5,
+             label='Drift')
+    plt.title(f'Predicted Probabilities - {class_name}')
+    plt.xlabel('Probability')
+    plt.ylabel('Frequency')
+    plt.legend()
+    plt.show()
+```
+
+#### 3. Predicted Class Distributions
+
+Compare distributions of predicted classes:
+
+```python
+import seaborn as sns
+
+plt.figure(figsize=(12, 6))
+sns.countplot(x=y_pred_baseline, label='Baseline', alpha=0.7)
+sns.countplot(x=y_pred_drift, label='Drift', alpha=0.7)
+plt.title('Predicted Class Distributions')
+plt.xlabel('Class')
+plt.ylabel('Count')
+plt.legend()
+plt.show()
+```
+
+### Alert Thresholds
+
+Set up monitoring alerts based on:
+
+1. **Number of drifted variables**:
+   - Alert if > 3 critical variables have KS > 0.1
+
+2. **Performance degradation**:
+   - Alert if AUC drops > 5%
+   - Alert if accuracy drops > 3%
+
+3. **Prediction distribution shifts**:
+   - Alert if predicted class distribution changes > 10%
+
+**Example Alert Logic**:
+
+```python
+def check_drift_alerts(ks_results, performance_metrics):
+    alerts = []
+    
+    # Check number of drifted variables
+    critical_drift = ks_results[
+        (ks_results['p_value'] < 0.05) & 
+        (ks_results['ks_statistic'] > 0.10)
+    ]
+    if len(critical_drift) > 3:
+        alerts.append('WARNING: More than 3 variables show significant drift')
+    
+    # Check performance degradation
+    if performance_metrics['auc_drop'] > 0.05:
+        alerts.append('CRITICAL: AUC dropped more than 5%')
+    
+    if performance_metrics['accuracy_drop'] > 0.03:
+        alerts.append('WARNING: Accuracy dropped more than 3%')
+    
+    return alerts
+```
+
+### Monitoring Workflow
+
+1. **Collect monitoring data** periodically (daily/weekly)
+2. **Run statistical tests** (KS for numerical, Chi-square for categorical)
+3. **Evaluate model performance** on monitoring data
+4. **Compare with baseline** metrics
+5. **Trigger alerts** if thresholds exceeded
+6. **Investigate root causes** of drift
+7. **Decide on actions**: retrain, recalibrate, or update pipeline
+
+### Key Findings from Analysis
+
+Based on the data drift analysis performed:
+
+- **Data drift detected**: Multiple variables showed significant distribution
+  changes
+- **Performance drift minimal**: Model maintained high AUC (~1.0) and AP (~1.0)
+- **Robustness**: Model demonstrates good robustness to moderate input
+  alterations
+- **Localized effects**: Some classes showed distribution shifts without
+  global performance degradation
+
+### Best Practices
+
+1. **Baseline establishment**: Use training/validation data as baseline
+2. **Regular monitoring**: Check for drift weekly or monthly
+3. **Multiple metrics**: Don't rely on a single drift metric
+4. **Context awareness**: Consider business context when setting thresholds
+5. **Documentation**: Keep records of drift events and model updates
+6. **Automation**: Automate drift detection in production pipelines
+
+For detailed implementation, see `notebooks/5.0_DataDrift.ipynb`.
 
 ## 📊 Model Information
 
